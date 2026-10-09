@@ -10,9 +10,11 @@ Output:
                                      wrapped to 2 display lines.
 
 Usage:
-  python build_srt.py SENTENCES TRANSLATIONS OUT_DIR BASE [--accept-review-flags]
+  python build_srt.py SENTENCES TRANSLATIONS OUT_DIR BASE [--accept-review-flags | --skip-review]
 
-Requires OUT_DIR/BASE.review.json from review_subtitles.py for these exact inputs.
+The Jev review is optional. By default OUT_DIR/BASE.review.json from
+review_subtitles.py must exist for these exact inputs. Pass --skip-review to build
+without any review, for example when no TYPESAFE_API_KEY is available.
 """
 import argparse
 from pathlib import Path
@@ -21,6 +23,9 @@ from subtitle_common import file_hash, fmt, load_inputs, read_json, wrap
 
 
 def require_review(path, sent_path, tr_path, units, accept_flags):
+    if not path.exists():
+        raise ValueError(f"No review report at {path.name}. Run review_subtitles.py first, "
+                         "or pass --skip-review to build without a Jev review")
     report = read_json(path)
     if not isinstance(report, dict) or report.get("version") != 1 or report.get("status") != "completed":
         raise ValueError("A completed Jev review is required; failed, partial and dry-run reports cannot build subtitles")
@@ -47,13 +52,19 @@ def main(argv=None):
     cli.add_argument("translations", type=Path)
     cli.add_argument("out_dir", type=Path)
     cli.add_argument("base")
-    cli.add_argument("--accept-review-flags", action="store_true")
+    review_mode = cli.add_mutually_exclusive_group()
+    review_mode.add_argument("--accept-review-flags", action="store_true")
+    review_mode.add_argument("--skip-review", action="store_true",
+                             help="build without a Jev review; an existing review report is ignored")
     args = cli.parse_args(argv)
     if not args.base or Path(args.base).name != args.base or args.base in (".", ".."):
         raise ValueError("BASE must be a filename stem, not a path")
     units, ko = load_inputs(args.sentences, args.translations)
-    require_review(args.out_dir / f"{args.base}.review.json", args.sentences,
-                   args.translations, units, args.accept_review_flags)
+    if args.skip_review:
+        print("NOTE: building without a Jev review (--skip-review)")
+    else:
+        require_review(args.out_dir / f"{args.base}.review.json", args.sentences,
+                       args.translations, units, args.accept_review_flags)
 
     srt, vtt = [], ["WEBVTT", ""]
     for i, u in enumerate(units, 1):

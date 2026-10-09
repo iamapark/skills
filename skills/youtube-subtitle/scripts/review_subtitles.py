@@ -2,7 +2,8 @@
 """Review English/Korean subtitle windows with Jev; never rewrite input files.
 
 Exit codes: 0 completed without flags (or dry run), 2 completed with review flags,
-1 incomplete/failed. Credentials: TYPESAFE_API_KEY environment variable only.
+1 incomplete/failed, 3 key missing or rejected (expired, revoked, no access), so no
+review was done. Credentials: TYPESAFE_API_KEY environment variable only.
 """
 import argparse
 from datetime import datetime, timezone
@@ -92,6 +93,10 @@ class ReviewError(Exception):
     """User-safe messages only: never put response bodies or credentials here."""
 
 
+class AuthError(ReviewError):
+    """The API key is missing, malformed or rejected, so no review can be done."""
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -162,7 +167,7 @@ def call_jev(payload, api_key, timeout, *, log_path, run_id, window_index):
             if status in (429, 529, 503) and attempt < 2:
                 retry_delay = min(30, max(2 ** attempt, int(retry_after))) if retry_after.isdigit() else 2 ** attempt
             elif status in (401, 403):
-                raise ReviewError(f"Jev HTTP {status}: check API key and account access") from None
+                raise AuthError(f"Jev HTTP {status}: API key rejected; it may be expired, revoked or lack access") from None
             else:
                 raise ReviewError(f"Jev HTTP {status}: review incomplete; upstream body omitted") from None
         except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
@@ -320,9 +325,9 @@ def main(argv=None):
     try:
         api_key = os.environ.get("TYPESAFE_API_KEY", "").strip()
         if not api_key:
-            raise ReviewError("TYPESAFE_API_KEY is not set; load it from Keychain or enter it privately in your terminal")
+            raise AuthError("TYPESAFE_API_KEY is not set; load it from Keychain or enter it privately in your terminal")
         if any(ord(c) < 33 or ord(c) > 126 for c in api_key):
-            raise ReviewError("TYPESAFE_API_KEY contains invalid characters")
+            raise AuthError("TYPESAFE_API_KEY contains invalid characters")
         for index, payload in enumerate(payloads, 1):
             started = time.monotonic()
             result = validate_response(call_jev(payload, api_key, args.timeout,
@@ -341,9 +346,11 @@ def main(argv=None):
         report["status"] = "completed"
     except ReviewError as error:
         report["status"], report["error"] = "failed", str(error)
+        if isinstance(error, AuthError):
+            report["error_kind"] = "credentials"
         save_report(report, report_path, units, translations)
         print(f"ERROR: {error}. Report: {report_path}")
-        return 1
+        return 3 if isinstance(error, AuthError) else 1
     save_report(report, report_path, units, translations)
     print(f"Review completed: {len(report['review_ids'])} cue IDs to re-review. {report_path.with_suffix('.md')}")
     return 2 if report["review_ids"] else 0

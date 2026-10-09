@@ -3,8 +3,8 @@ name: youtube-subtitle
 description: >-
   Generate timing-synced Korean subtitles (SRT/VTT) for a YouTube video by
   transcribing its audio locally with faster-whisper (an optimized Whisper
-  engine) and translating the English transcript into natural Korean with the LLM, then reviewing it
-  with Jev before assembly. Only triggers when
+  engine) and translating the English transcript into natural Korean with the LLM,
+  optionally reviewing it with Jev before assembly. Only triggers when
   EXPLICITLY invoked via /youtube-subtitle (or when the user names this
   skill directly). Do NOT auto-trigger on generic transcription, translation, or
   subtitle requests — this skill is opt-in only.
@@ -15,12 +15,14 @@ description: >-
 Produce a natural, well-timed **Korean** subtitle file for a YouTube video. The
 pipeline is: download audio → transcribe English locally with faster-whisper
 (Whisper) → **you (the LLM) translate** the English transcript into Korean →
-**Jev review + your targeted re-review** → build Korean SRT/VTT with original timings.
+**optional Jev review + your targeted re-review** → build Korean SRT/VTT with original
+timings.
 
 The translation step is the heart of this skill and is done by you, not a
 machine-translation API — that is what makes the result read like a human
-subtitler wrote it. Scripts handle transcription, timing, file assembly, and Jev
-review requests. Jev flags possible problems; you decide how to revise the text.
+subtitler wrote it. Scripts handle transcription, timing, file assembly, and the
+optional Jev review requests. Jev flags possible problems; you decide how to
+revise the text.
 
 ## When to run
 
@@ -44,10 +46,12 @@ Inspecting or modifying this skill does not require a video URL.
 - Python 3.9 or newer. The setup script builds a venv once and reuses it. It
   installs only `faster-whisper` (speech recognition) and `yt-dlp` (download),
   about 260 MB in total, and needs no PyTorch.
-- `TYPESAFE_API_KEY` for Jev review. Before a full run, follow
-  [Jev review and key setup](references/jev-review.md). Use the macOS Keychain or
-  a private terminal prompt; never ask the user to paste a key into the conversation.
-  Dry-run preparation works without a key, but is not completed review.
+- Optional: `TYPESAFE_API_KEY` for the Jev review (step 4.5). Without a key the
+  review is skipped and the subtitles are built with `--skip-review`. To use it,
+  follow [Jev review and key setup](references/jev-review.md). Use the macOS
+  Keychain or a private terminal prompt; never ask the user to paste a key into
+  the conversation. Dry-run preparation works without a key, but is not completed
+  review.
 
 ## Workflow
 
@@ -230,7 +234,17 @@ separate a good subtitle from a robotic one.
 - Every unit id in `sentences.json` must appear in `translations.json`, or the
   build step will refuse to run and tell you which ids are missing.
 
-### 4.5. Review translations with Jev
+### 4.5. Review translations with Jev (optional)
+
+Run this step only when a TypeSafe key is already set up: `TYPESAFE_API_KEY` is
+set, or the user says it is stored in the Keychain. Never ask for the key in the
+conversation. If there is no key, or the user does not want the review, skip to
+step 5 and build with `--skip-review`; the final report must say that no Jev
+review was done. A key can also be expired or revoked: the script then exits 3
+("key rejected") before any review happens, which you treat like having no key.
+Do not use `--skip-review` to get past any other failed review (exit 1) or past
+flags from a review you ran; for exit 1, tell the user and ask whether to retry
+or build without a review.
 
 Read [Jev review and key setup](references/jev-review.md) for credential loading,
 report details, tuning, and failure handling. Jev receives transcript/translation
@@ -242,7 +256,10 @@ text and optional glossary, not audio or video. It cannot verify the actual spee
 ```
 
 Inspect `$BASE.review.md` and `.review.json`. Exit 0 means completed without flags;
-exit 2 means completed with review candidates; exit 1 means failed/incomplete.
+exit 2 means completed with review candidates; exit 1 means failed/incomplete;
+exit 3 means the key is missing or was rejected (for example expired) and no
+review was done. On exit 3, tell the user the key could not be used (never print
+it), then skip to step 5 with `--skip-review` and say so in the final report.
 Each HTTP attempt, including retries/failures, appends start/finish events to
 `$BASE.jev-api.jsonl`. Earlier runs remain; the report identifies its run ID and
 log path. The history excludes API keys and subtitle text.
@@ -265,11 +282,15 @@ extra user approval. Jev is advisory, including when it reports no issues.
   "$OUT/$BASE.sentences.json" "$OUT/translations.json" "$OUT" "$BASE"
 ```
 
+Without a Jev review (step 4.5 skipped), add `--skip-review` to the same command.
+
 Produces `$BASE.ko.srt` and `$BASE.ko.vtt` — same basename as the video, so media
 players auto-load them — timings preserved, long lines wrapped toward two
-display lines. The builder requires a completed `$BASE.review.json` matching the
-current input hashes and covering every cue. Retained review flags require
-`--accept-review-flags`; failed, absent or stale reports cannot be bypassed.
+display lines. After a review, the builder requires a completed `$BASE.review.json`
+matching the current input hashes and covering every cue. Retained review flags
+require `--accept-review-flags`; failed, absent or stale reports cannot be bypassed
+that way. `--skip-review` builds from the translations as they are and ignores any
+existing report.
 
 ### 6. Verify sync (recommended)
 
@@ -346,20 +367,22 @@ rm -rf "$VDIR"
 
 Tell the user the final file paths (`$BASE.ko.srt`, `$BASE.ko.vtt`, inside the
 title-named `$OUT` folder), the cue count, and the transcription model used.
-Include the Jev review report path/status, returned model version, flagged cue
-count, and any flags retained after inspection. Distinguish offline/mock tests
-from a real API review; never imply the text review verified audio sync. Since the
+If the Jev review ran, include its report path/status, returned model version,
+flagged cue count, and any flags retained after inspection. Distinguish
+offline/mock tests from a real API review; never imply the text review verified
+audio sync. If it was skipped, say so plainly: the translation was checked only
+by you. Since the
 subtitles share the video's basename, opening `$VIDEO` in IINA/VLC auto-loads
 them (same folder, same name). Note that any unit can be tweaked by editing
-`translations.json` and re-running steps 4.5–5 — and, if you ran step 7, that the
+`translations.json` and re-running steps 4.5–5 (or just 5 without a review) — and, if you ran step 7, that the
 hardsub has to be re-encoded to pick those edits up while the sidecar and the
 muxed track do not.
 
 ## Editing / re-running
 
 `translations.json` and `$BASE.sentences.json` are the source of truth. To revise
-specific lines, edit the Korean for those ids, rerun `review_subtitles.py`, then
-`build_srt.py` (it rewrites `$BASE.ko.srt` / `.ko.vtt`) — no need to re-transcribe. To change
+specific lines, edit the Korean for those ids, rerun `review_subtitles.py` if you
+use Jev, then `build_srt.py` (add `--skip-review` if you do not; it rewrites `$BASE.ko.srt` / `.ko.vtt`) — no need to re-transcribe. To change
 accuracy, re-run `transcribe.py` with a larger model (re-translation needed since
 unit ids change).
 
@@ -380,6 +403,6 @@ unit ids change).
   English transcription. (Whisper's own `translate` task only outputs English,
   so it cannot produce Korean directly — hence the LLM translation step.)
 - ASR runs locally. The LLM handles translation in its configured environment;
-  Jev review sends English/Korean text, cue metadata and the optional glossary
-  to TypeSafe. The review scripts never upload audio/video. See
+  When you run the optional Jev review, it sends English/Korean text, cue
+  metadata and the optional glossary to TypeSafe. The review scripts never upload audio/video. See
   [Jev review and key setup](references/jev-review.md) for API failures and keys.

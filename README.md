@@ -43,9 +43,10 @@ Pick one method per agent. Installing both gives you the skill twice.
 
 - `ffmpeg`
 - Python 3.9 or newer (the setup script creates its own virtual environment with just `faster-whisper` and `yt-dlp`, about 260 MB)
-- `TYPESAFE_API_KEY` for the Jev review step, as described in
+- Optional: `TYPESAFE_API_KEY` for the Jev review step, as described in
   [`references/jev-review.md`](./skills/youtube-subtitle/references/jev-review.md).
-  The skill does not treat a run without a completed review as finished.
+  Without a key the skill skips the review and builds the subtitles with
+  `--skip-review`; the final report says that no review was done.
 
 Setup installs the Python packages once and is instant afterwards. The first
 transcription also downloads the Whisper model (for example about 480 MB for

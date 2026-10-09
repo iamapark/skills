@@ -131,10 +131,11 @@ class SubtitleReviewTests(unittest.TestCase):
         self.run_review()
         with patch.dict(os.environ, {}, clear=True):
             code, call = self.run_review()
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 3)
         call.assert_not_called()
         self.assertFalse(self.api_log.exists())
-        self.assertEqual(json.loads(self.report.read_text())["status"], "failed")
+        report = json.loads(self.report.read_text())
+        self.assertEqual((report["status"], report["error_kind"]), ("failed", "credentials"))
         with self.assertRaisesRegex(ValueError, "completed Jev review"):
             build_srt.main(self.argv + ["--accept-review-flags"])
 
@@ -153,6 +154,50 @@ class SubtitleReviewTests(unittest.TestCase):
         self.save_inputs()
         with self.assertRaisesRegex(ValueError, "stale"):
             build_srt.main(self.argv + ["--accept-review-flags"])
+
+    def test_skip_review_builds_without_any_report_or_key(self):
+        self.assertFalse(self.report.exists())
+        with patch.dict(os.environ, {}, clear=True), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(build_srt.main(self.argv + ["--skip-review"]), 0)
+        self.assertIn("without a Jev review", out.getvalue())
+        srt = (self.out / "sample.ko.srt").read_text()
+        self.assertIn("00:00:03,000 --> 00:00:06,000\n서버를 확인하지 않고", srt)
+        self.assertTrue((self.out / "sample.ko.vtt").read_text().startswith("WEBVTT"))
+
+    def test_skip_review_ignores_failed_report_but_default_still_refuses(self):
+        self.run_review(side_effect=review.ReviewError("Jev HTTP 401"))
+        with self.assertRaisesRegex(ValueError, "completed Jev review"):
+            build_srt.main(self.argv)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(build_srt.main(self.argv + ["--skip-review"]), 0)
+
+    def test_rejected_key_exits_3_and_other_failures_stay_exit_1(self):
+        for status in (401, 403):
+            with self.subTest(status=status):
+                error = urllib.error.HTTPError(review.ENDPOINT, status, "denied", {}, io.BytesIO())
+                with patch.object(review.urllib.request, "build_opener") as opener:
+                    opener.return_value.open.side_effect = error
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        code = review.main(self.argv)
+                self.assertEqual(code, 3)
+                report = json.loads(self.report.read_text())
+                self.assertEqual(report["error_kind"], "credentials")
+                self.assertIn("expired", report["error"])
+        with self.assertRaisesRegex(ValueError, "completed Jev review"):
+            build_srt.main(self.argv)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(build_srt.main(self.argv + ["--skip-review"]), 0)
+        code, _ = self.run_review(side_effect=review.ReviewError("Jev HTTP 529"))
+        self.assertEqual(code, 1)
+        self.assertNotIn("error_kind", json.loads(self.report.read_text()))
+
+    def test_skip_review_cannot_be_combined_with_accept_flags(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            build_srt.main(self.argv + ["--skip-review", "--accept-review-flags"])
+
+    def test_default_build_without_report_is_still_refused(self):
+        with self.assertRaisesRegex(ValueError, "--skip-review"):
+            build_srt.main(self.argv)
 
     def test_dry_report_and_missing_coverage_cannot_build(self):
         self.run_review("--dry-run")
@@ -222,7 +267,7 @@ class SubtitleReviewTests(unittest.TestCase):
                                        io.BytesIO(b"test-only-secret upstream echo"))
         with patch.object(review.urllib.request, "build_opener") as opener, patch.object(review.time, "sleep") as sleep:
             opener.return_value.open.side_effect = error
-            with self.assertRaises(review.ReviewError) as caught:
+            with self.assertRaises(review.AuthError) as caught:
                 review.call_jev({}, "test-only-secret", 1, **self.log_context)
         self.assertNotIn("test-only-secret", str(caught.exception))
         self.assertEqual(opener.return_value.open.call_count, 1)

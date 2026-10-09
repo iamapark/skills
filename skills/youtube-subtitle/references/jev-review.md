@@ -1,7 +1,8 @@
 # Jev subtitle review
 
-Run `scripts/review_subtitles.py` after translating and before assembling SRT/VTT.
-This is an additional reviewer; the LLM still translates, checks the report and
+This step is optional. Without a TypeSafe key, skip it and build with
+`build_srt.py --skip-review`. To use it, run `scripts/review_subtitles.py` after
+translating and before assembling SRT/VTT. This is an additional reviewer; the LLM still translates, checks the report and
 decides how to revise. Jev never modifies the transcript, translations or timing.
 
 ## API key management
@@ -75,7 +76,8 @@ Exit codes:
 |---|---|---|
 | 0 | Review completed without flags, or dry run completed | Inspect status; a dry run is not a review |
 | 2 | Review completed with candidates for re-review | Read the report and review those cues in context |
-| 1 | Invalid input, key/access problem, API failure or incomplete review | Resolve the error and rerun; do not claim completion |
+| 1 | Invalid input, API failure (rate limit, network, invalid response) or incomplete review | Resolve the error and rerun; do not claim completion |
+| 3 | Key missing, malformed or rejected (expired, revoked, no access); no review was done | Treat as having no key: tell the user, skip with `build_srt.py --skip-review` and say so in the report |
 
 Do not chain review and build with unconditional `;` or ignore a nonzero exit.
 Exit 2 is a useful report, not a service failure. Keep existing SRT/video outputs
@@ -182,7 +184,8 @@ Build with the original command once review is complete:
 
 If flagged wording was inspected and intentionally retained, add
 `--accept-review-flags`. This does not bypass missing, failed, dry-run or stale
-reports. The builder checks hashes and full cue coverage; editing either source
+reports. Only `--skip-review` builds without a review; use it when you chose not
+to run Jev, never to get past a failed review or flags you were shown. The builder checks hashes and full cue coverage; editing either source
 file invalidates its previous review. Review reports are workflow artifacts,
 not cryptographically trusted attestations; do not hand-edit them to pass a build.
 
