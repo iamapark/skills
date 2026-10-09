@@ -43,9 +43,12 @@ Inspecting or modifying this skill does not require a video URL.
 ## Prerequisites
 
 - `ffmpeg`.
-- Python 3.9 or newer. The setup script builds a venv once and reuses it. It
+- Python 3.10 or newer. The setup script builds a venv once and reuses it. It
   installs only `faster-whisper` (speech recognition) and `yt-dlp` (download),
   about 260 MB in total, and needs no PyTorch.
+- For YouTube downloads: Deno 2.3+ (recommended; macOS: `brew install deno`)
+  or Node.js 22+ on `PATH`. The download command enables both runtimes.
+  See [yt-dlp runtime requirements](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 - Optional: `TYPESAFE_API_KEY` for the Jev review (step 4.5). Without a key the
   review is skipped and the subtitles are built with `--skip-review`. To use it,
   follow [Jev review and key setup](references/jev-review.md). Use the macOS
@@ -77,6 +80,10 @@ Substitute `$SKILL_DIR` for `<SKILL_DIR>` in the commands below.
 bash "<SKILL_DIR>/scripts/setup.sh"
 ```
 
+For an existing local audio/video file, add `--local-file` to skip the
+JavaScript runtime check. Skip step 2 and set `VIDEO` to the local file path,
+`OUT` to the output directory, and `BASE` to the filename stem.
+
 It prints the venv Python path on the last line. Capture it:
 
 ```bash
@@ -93,6 +100,7 @@ transcription (step 3).
 
 ```bash
 VIDEO="$("$VENV/bin/yt-dlp" \
+  --js-runtimes deno --js-runtimes node \
   -f "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b" \
   --merge-output-format mp4 -o "./yt-subs/%(title)s/%(title)s.%(ext)s" \
   --print after_move:filepath "<YOUTUBE_URL>" | tail -1)"
@@ -392,9 +400,12 @@ unit ids change).
   `HF_HUB_DISABLE_XET=1`. If a model still fails to download, check access to
   huggingface.co and re-run; downloaded models are cached by `huggingface_hub`
   (by default under `~/.cache/huggingface/hub`) and reused.
-- **No suitable Python**: `setup.sh` picks the first Python 3.9+ it finds
+- **No suitable Python**: `setup.sh` picks the first Python 3.10+ it finds
   (`python3.12`, `3.13`, `3.11`, `3.10`, then `python3`) and falls back to
   installing `python@3.12` with homebrew.
+- **Old virtual environment**: setup rejects a cached venv running Python below
+  3.10. Set `YKS_VENV` to a new directory and rerun setup; use that same path for
+  `VENV` in later commands. The existing environment is not deleted.
 - **`.en` vs multilingual**: `small.en` and `small` are different downloads of
   the same size. `.en` models were trained on English only and cannot represent
   any other language — they do not report an error, they hallucinate

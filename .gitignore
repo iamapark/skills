@@ -2,3 +2,30 @@ __pycache__/
 *.pyc
 *.bak
 .DS_Store
+
+# Local credentials and browser sessions
+.env
+.env.*
+!.env.example
+cookies.txt
+*.cookies.txt
+
+# Downloaded media and generated subtitle/review artifacts
+yt-subs/
+*.mp4
+*.mkv
+*.webm
+*.mp3
+*.m4a
+*.wav
+*.srt
+*.vtt
+*.en.txt
+*.sentences.json
+translations.json
+glossary.json
+*.review.json
+*.review.md
+*.review-plan.json
+*.review-plan.md
+*.jev-api.jsonl

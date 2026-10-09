@@ -43,7 +43,11 @@ Pick one method per agent. Installing both gives you the skill twice.
 ## Requirements for `youtube-subtitle`
 
 - `ffmpeg`
-- Python 3.9 or newer (the setup script creates its own virtual environment with just `faster-whisper` and `yt-dlp`, about 260 MB)
+- Python 3.10 or newer (the setup script creates its own virtual environment with `faster-whisper` and `yt-dlp[default]`, including its JavaScript challenge solver)
+- For YouTube downloads: Deno 2.3+ (recommended; macOS: `brew install deno`)
+  or Node.js 22+, available on `PATH`. The download command enables both.
+  See the [yt-dlp runtime requirements](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+  For an existing local media file, run `setup.sh --local-file` to skip this check.
 - Optional: `TYPESAFE_API_KEY` for the Jev review step, as described in
   [`references/jev-review.md`](./skills/youtube-subtitle/references/jev-review.md).
   Without a key the skill skips the review and builds the subtitles with
