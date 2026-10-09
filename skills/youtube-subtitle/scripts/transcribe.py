@@ -4,8 +4,7 @@
   <base>.en.srt / .en.vtt / .en.txt   -- English reference subtitles + transcript
   <base>.sentences.json               -- [{id,start,end,en}] units for translation
 
-It uses the faster-whisper engine bundled with buzz-captions (the same Whisper
-backend Buzz itself runs) with WORD-LEVEL timestamps, then groups words into
+It uses the faster-whisper engine with WORD-LEVEL timestamps, then groups words into
 short units by punctuation, speech pauses, and a hard duration cap. Word-level
 timing is what lets the Korean translation stay in sync even though Korean and
 English word order differ -- see SKILL.md.
@@ -94,12 +93,7 @@ def main():
                  f"(got {model_size!r})")
     os.makedirs(out_dir, exist_ok=True)
 
-    # Reuse Buzz's model cache if present so we don't re-download.
-    buzz_cache = os.path.expanduser("~/Library/Caches/Buzz/models")
-    download_root = buzz_cache if os.path.isdir(buzz_cache) else None
-
-    model = WhisperModel(model_size, device="cpu", compute_type="int8",
-                         download_root=download_root)
+    model = WhisperModel(model_size, device="cpu", compute_type="int8")
     segments, _ = model.transcribe(audio, language=language, task=task,
                                    word_timestamps=True, vad_filter=False)
 

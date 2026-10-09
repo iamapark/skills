@@ -42,13 +42,14 @@ Pick one method per agent. Installing both gives you the skill twice.
 ## Requirements for `youtube-subtitle`
 
 - `ffmpeg`
-- Python 3.12 (the setup script creates its own virtual environment and installs `buzz-captions`)
+- Python 3.9 or newer (the setup script creates its own virtual environment with just `faster-whisper` and `yt-dlp`, about 260 MB)
 - `TYPESAFE_API_KEY` for the Jev review step, as described in
   [`references/jev-review.md`](./skills/youtube-subtitle/references/jev-review.md).
   The skill does not treat a run without a completed review as finished.
 
-The first run downloads Python packages and a Whisper model, which takes a few
-minutes. After that, setup is instant.
+Setup installs the Python packages once and is instant afterwards. The first
+transcription also downloads the Whisper model (for example about 480 MB for
+`small.en`).
 
 ## Repository layout
 

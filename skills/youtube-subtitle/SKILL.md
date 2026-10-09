@@ -2,8 +2,8 @@
 name: youtube-subtitle
 description: >-
   Generate timing-synced Korean subtitles (SRT/VTT) for a YouTube video by
-  transcribing its audio locally with Buzz (the Whisper engine) and translating
-  the English transcript into natural Korean with the LLM, then reviewing it
+  transcribing its audio locally with faster-whisper (an optimized Whisper
+  engine) and translating the English transcript into natural Korean with the LLM, then reviewing it
   with Jev before assembly. Only triggers when
   EXPLICITLY invoked via /youtube-subtitle (or when the user names this
   skill directly). Do NOT auto-trigger on generic transcription, translation, or
@@ -13,8 +13,8 @@ description: >-
 # YouTube → Korean Subtitle
 
 Produce a natural, well-timed **Korean** subtitle file for a YouTube video. The
-pipeline is: download audio → transcribe English locally with Buzz's Whisper
-engine → **you (the LLM) translate** the English transcript into Korean →
+pipeline is: download audio → transcribe English locally with faster-whisper
+(Whisper) → **you (the LLM) translate** the English transcript into Korean →
 **Jev review + your targeted re-review** → build Korean SRT/VTT with original timings.
 
 The translation step is the heart of this skill and is done by you, not a
@@ -40,9 +40,10 @@ Inspecting or modifying this skill does not require a video URL.
 
 ## Prerequisites
 
-- `ffmpeg` and a YouTube downloader (`yt-dlp`, installed with buzz-captions).
-- A Python 3.12 venv with `buzz-captions`. The setup script builds it once and
-  reuses it. `buzz-captions` requires Python `>=3.12,<3.13` specifically.
+- `ffmpeg`.
+- Python 3.9 or newer. The setup script builds a venv once and reuses it. It
+  installs only `faster-whisper` (speech recognition) and `yt-dlp` (download),
+  about 260 MB in total, and needs no PyTorch.
 - `TYPESAFE_API_KEY` for Jev review. Before a full run, follow
   [Jev review and key setup](references/jev-review.md). Use the macOS Keychain or
   a private terminal prompt; never ask the user to paste a key into the conversation.
@@ -79,8 +80,10 @@ VENV="$HOME/.cache/youtube-subtitle/venv"
 PY="$VENV/bin/python"
 ```
 
-The first run installs torch + Whisper and takes a few minutes; later runs are
-instant. Run it in the background and wait, rather than blocking the UI.
+The first run installs `faster-whisper` and `yt-dlp` and takes a minute or
+less; later runs are instant. Run it in the background and wait, rather than
+blocking the UI. The Whisper model itself is downloaded by the first
+transcription (step 3).
 
 ### 2. Download the video
 
@@ -124,7 +127,7 @@ download is skipped) — but if it holds a *different* video that happens to sha
 a title, append the id (`-o "./yt-subs/%(title)s [%(id)s]/%(title)s.%(ext)s"`)
 so the two don't overwrite each other.
 
-### 3. Transcribe to English (Buzz / Whisper engine)
+### 3. Transcribe to English (faster-whisper)
 
 **Before transcribing the whole video, settle what language is actually
 spoken.** The default model is English-only, and feeding it another language
@@ -184,12 +187,6 @@ This writes `$BASE.en.srt`, `$BASE.en.vtt`, `$BASE.en.txt`, and — crucially �
 `$BASE.sentences.json`, a list of short units each with `{id, start, end, en}` and
 accurate word-derived timing. Transcription is CPU-bound; run it in the
 background and wait for the `OK: N units` line.
-
-> Alternative English-only path: `"$PY" -m buzz add --task transcribe
-> --model-type fasterwhisper --model-size small.en -l en --srt --vtt --txt -d
-> "$OUT" "<YOUTUBE_URL>"`. This is the literal Buzz CLI, but its segmentation is
-> coarse (whole-paragraph cues) or word-level, so for **Korean** subtitles
-> prefer `transcribe.py`, which segments into translation-friendly units.
 
 ### 4. Translate into Korean (this is your job)
 
@@ -369,11 +366,12 @@ unit ids change).
 ## Notes & troubleshooting
 
 - **Model download 401 / xet errors**: `transcribe.py` already sets
-  `HF_HUB_DISABLE_XET=1` and reuses Buzz's model cache
-  (`~/Library/Caches/Buzz/models`). If a fresh model still fails, run one
-  `python -m buzz add …` (step 3 alternative) once to populate the cache.
-- **Wrong Python**: buzz-captions installs only on Python 3.12. `setup.sh`
-  locates or installs it via homebrew.
+  `HF_HUB_DISABLE_XET=1`. If a model still fails to download, check access to
+  huggingface.co and re-run; downloaded models are cached by `huggingface_hub`
+  (by default under `~/.cache/huggingface/hub`) and reused.
+- **No suitable Python**: `setup.sh` picks the first Python 3.9+ it finds
+  (`python3.12`, `3.13`, `3.11`, `3.10`, then `python3`) and falls back to
+  installing `python@3.12` with homebrew.
 - **`.en` vs multilingual**: `small.en` and `small` are different downloads of
   the same size. `.en` models were trained on English only and cannot represent
   any other language — they do not report an error, they hallucinate
