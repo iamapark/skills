@@ -1,0 +1,14 @@
+{
+  "name": "jinyoung-skills",
+  "owner": {
+    "name": "Jinyoung Park"
+  },
+  "description": "Jinyoung's personal agent skills, as an installable Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "jinyoung-skills",
+      "source": "./",
+      "description": "Jinyoung's personal agent skills (YouTube subtitles and more)."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "jinyoung-skills",
+  "version": "0.1.0",
+  "description": "Jinyoung's personal agent skills.",
+  "author": {
+    "name": "Jinyoung Park"
+  },
+  "license": "MIT",
+  "keywords": ["skills", "youtube", "subtitle"],
+  "skills": [
+    "./skills/youtube-subtitle"
+  ]
+}
