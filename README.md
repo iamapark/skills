@@ -12,12 +12,13 @@ Code plugin, so one install gives you every skill.
 
 ## Installation
 
-Replace `<owner>` with the GitHub account that hosts this repository.
+This repository is `iamapark/skills`. The plugin and the marketplace it contains
+are both named `jinyoung-skills`.
 
 ### Claude Code plugin (updates through the plugin system)
 
 ```bash
-claude plugin marketplace add <owner>/jinyoung-skills
+claude plugin marketplace add iamapark/skills
 claude plugin install jinyoung-skills@jinyoung-skills
 ```
 
@@ -27,13 +28,13 @@ Plugin skills are invoked with the plugin name as a prefix, for example
 ### Copy the files (any agent, manual updates)
 
 ```bash
-npx skills@latest add <owner>/jinyoung-skills
+npx skills@latest add iamapark/skills
 ```
 
 Or clone the repository and copy a skill folder by hand:
 
 ```bash
-git clone https://github.com/<owner>/jinyoung-skills.git
+git clone https://github.com/iamapark/skills.git jinyoung-skills
 cp -r jinyoung-skills/skills/youtube-subtitle ~/.claude/skills/
 ```
 
@@ -55,7 +56,7 @@ transcription also downloads the Whisper model (for example about 480 MB for
 ## Repository layout
 
 ```
-jinyoung-skills/
+<repository root>/
 ├── .claude-plugin/
 │   ├── marketplace.json   # marketplace listing (one plugin)
 │   └── plugin.json        # plugin manifest, lists every skill folder
