@@ -337,7 +337,7 @@ ffmpeg -y -loglevel error -i "$VIDEO" -i "$OUT/$BASE.ko.srt" \
 ```
 
 **Burn in (hardsub).** Pixels are rewritten, so the Korean shows anywhere — web
-players, phones, previews, re-uploads — and can never be switched off. Costs a
+players, phones, previews, screenshots — and can never be switched off. Costs a
 full re-encode and a generation of quality loss, and the file gets much bigger
 (a 316 kbps AV1 source became 2.6 Mbps H.264, 51 MB → 427 MB). Same filter-path
 rule as step 6: `$OUT` contains the title, so the SRT must be copied to a
